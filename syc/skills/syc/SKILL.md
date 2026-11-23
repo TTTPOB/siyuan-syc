@@ -1,18 +1,69 @@
 ---
 name: syc
-description: Use syc to work with SiYuan notebooks, documents, blocks, assets, and sync across explicitly selected instances.
+description: Read and edit SiYuan (思源笔记) notes, upload or download note attachments, and trigger SiYuan sync with the syc CLI. Use whenever a task touches SiYuan notebooks, documents, blocks, databases, assets, search, or sync.
 ---
 
 # SiYuan with syc
 
-Run `syc instances` and `syc current` to check which instance will be used.
-In DSH, run `syc use <name>` once per session. Pass `syc -i <name> ...` when
-delegating to subagents; their sessions do not inherit this choice. Other hosts
-can select with `-i` or `SYC_INSTANCE`.
+`syc` runs the official SiYuan MCP tools of one configured instance and adds
+local-file attachment transfer. Commands print JSON on stdout. Commands that
+reach an instance also print `syc: instance=<name> (<source>)` on stderr, so
+you can see which instance served the call.
 
-Read the workflow for the current operation:
+If `syc` is missing, no instance is configured, or requests fail with HTTP
+errors, read [DEPLOYMENT.md](DEPLOYMENT.md).
 
-- [MCP](workflows/mcp.md): discover, describe, and call tools.
-- [Assets](workflows/assets.md): upload, save, and inspect attachments.
-- [Sync](workflows/sync.md): sync one instance.
-- [Deployment](DEPLOYMENT.md): install and configure instances.
+## Choose the instance first
+
+`syc` picks the instance in this order: `-i NAME`, then `SYC_INSTANCE`, then
+this session's `syc use NAME`, then the only configured instance. With several
+instances and no selection, every command that reaches an instance fails and
+lists the configured instances.
+
+- In DSH, run `syc use NAME` once per session. Later commands in the same
+  session need no flag.
+- Other hosts do not have per-session selection yet. Pass `-i NAME` on every
+  command.
+- A subagent runs in its own session and does not inherit your `syc use`.
+  Name the instance in the task you delegate.
+- When you cannot tell which instance the user means, ask. Instances can hold
+  different data, and replicas of the same notebooks can lag behind each other.
+
+Good: check, then select once.
+
+```sh
+syc instances
+syc use server
+syc call notebook '{"action":"list"}'
+```
+
+Good: delegation names the instance.
+
+> Edit the meeting note in SiYuan instance `server`. Run `syc use server`
+> before any other `syc` command.
+
+Bad: delegation without an instance.
+
+> Edit the meeting note in SiYuan.
+
+The subagent starts with no selection. Its first command fails, and it may
+pick an instance arbitrarily to recover.
+
+## Read the workflow for the task
+
+| Task | Read |
+|---|---|
+| Notes, blocks, search, SQL, databases, any other MCP tool | [workflows/mcp.md](workflows/mcp.md) |
+| Put a local file into a note; view or save an attachment | [workflows/assets.md](workflows/assets.md) |
+| Sync an instance | [workflows/sync.md](workflows/sync.md) |
+| Install, configure, HTTP 403 or connection errors | [DEPLOYMENT.md](DEPLOYMENT.md) |
+
+## Rules for every command
+
+- Check the exit code. 0 is success. 1 is either a tool error, with the MCP
+  result on stdout and `"isError": true`, or a `syc` error, with the message on
+  stderr. 2 is a usage error.
+- Do not retry a failed write automatically. An error or timeout does not
+  prove that nothing was written; read the target back first.
+- Learn tools from `syc describe` on the instance, not from memory. Tools and
+  actions change between SiYuan versions.

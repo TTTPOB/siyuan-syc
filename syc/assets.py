@@ -94,18 +94,14 @@ def get_asset(instance: Instance, asset: str, output: Path | None) -> dict[str, 
             "Use a relative SiYuan asset path such as assets/example.png"
         )
     response = _post(instance, GET_FILE, json={"path": "/data/" + asset})
-    media_type = response.headers.get("Content-Type", "application/octet-stream")
-    if "application/json" in media_type.lower():
+    # getFile answers 200 with the raw file and 202 with a JSON error envelope.
+    if response.status_code == 202:
         try:
             result = response.json()
         except (json.JSONDecodeError, UnicodeError):
-            result = None  # A downloaded asset can itself be malformed JSON.
-        if (
-            isinstance(result, dict)
-            and type(code := result.get("code")) in (int, float)
-            and code != 0
-        ):
-            raise _api_error(GET_FILE, result)
+            result = {}
+        raise _api_error(GET_FILE, result if isinstance(result, dict) else {})
+    media_type = response.headers.get("Content-Type", "application/octet-stream")
 
     if output is None:
         output = Path(tempfile.mkdtemp(prefix="syc-asset-")) / Path(asset).name
@@ -114,6 +110,8 @@ def get_asset(instance: Instance, asset: str, output: Path | None) -> dict[str, 
             handle.write(response.content)
     except FileExistsError:
         raise click.ClickException(f"Output already exists: {output}") from None
+    except OSError as exc:
+        raise click.ClickException(f"Cannot write {output}: {exc.strerror}") from None
     return {
         "asset": asset,
         "path": str(output.absolute()),

@@ -96,7 +96,7 @@ def load_instances(root: Path) -> dict[str, Instance]:
                 f"Instance {name!r}: user_agent must be a non-empty single line"
             )
         instances[name] = Instance(
-            url.rstrip("/"), root / Path(headers_file), user_agent
+            url.rstrip("/"), root / Path(headers_file).expanduser(), user_agent
         )
     return instances
 

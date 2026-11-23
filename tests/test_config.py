@@ -1,5 +1,8 @@
 import json
+import os
 import sqlite3
+import subprocess
+import sys
 from contextlib import closing
 from pathlib import Path
 
@@ -100,6 +103,29 @@ def test_headers_are_loaded_at_call_time_and_user_agent_wins(config_root: Path) 
     }
     path.write_text('{"Authorization":"example2"}')
     assert instance.headers()["Authorization"] == "example2"
+
+
+def test_headers_file_expands_home(
+    config_root: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setenv("HOME", str(config_root / "home"))
+    (config_root / "config.toml").write_text(
+        '[instances.server]\nurl = "https://notes.example.invalid"\n'
+        'headers_file = "~/creds/server.json"\n'
+    )
+    instance = load_instances(config_root)["server"]
+    assert instance.headers_file == config_root / "home" / "creds" / "server.json"
+
+
+def test_non_mcp_commands_do_not_import_the_sdk(config_root: Path) -> None:
+    code = (
+        "import sys; from syc.cli import main\n"
+        "try: main(['instances'])\n"
+        "except SystemExit: pass\n"
+        "assert 'mcp' not in sys.modules, 'mcp imported'\n"
+    )
+    env = {**os.environ, "SYC_CONFIG_DIR": str(config_root)}
+    subprocess.run([sys.executable, "-c", code], check=True, env=env)
 
 
 def test_proxy_selection_accepts_windows_style_bypass_entries(

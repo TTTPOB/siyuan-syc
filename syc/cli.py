@@ -223,6 +223,8 @@ def setup(host: str, remove: bool, force: bool) -> None:
     """Install or remove the bundled user-level skill for HOST."""
     from .skill import install_skill, remove_skill, skill_target
 
+    if remove and force:
+        raise click.UsageError("--force only applies to installation.")
     target = skill_target(host)
     operation = remove_skill if remove else install_skill
     changed = operation(target, force=force)

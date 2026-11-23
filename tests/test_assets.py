@@ -18,6 +18,7 @@ from syc.cli import main
 class Mock:
     response: bytes = b""
     media_type: str = "application/json"
+    status: int = 200
     requests: list[tuple[str, dict[str, str], bytes]] = field(default_factory=list)
 
     def reply_json(self, value: object) -> None:
@@ -35,7 +36,7 @@ def server(config_root: Path, monkeypatch: pytest.MonkeyPatch) -> Iterator[Mock]
             mock.requests.append(
                 (self.path, headers, self.rfile.read(int(headers["content-length"])))
             )
-            self.send_response(200)
+            self.send_response(mock.status)
             self.send_header("Content-Type", mock.media_type)
             self.send_header("Content-Length", str(len(mock.response)))
             self.end_headers()
@@ -170,12 +171,15 @@ def test_get_asset_distinguishes_api_error_from_json_file(
     output = tmp_path / "out.json"
     runner = CliRunner()
     command = ["asset", "get", "assets/example.json", "-o", str(output)]
-    server.reply_json({"code": -1, "msg": "missing"})
+    server.status = 202
+    server.reply_json({"code": 404, "msg": "missing"})
     result = runner.invoke(main, command)
     assert result.exit_code == 1
-    assert "API code -1 (missing)" in result.stderr
+    assert "API code 404 (missing)" in result.stderr
     assert not output.exists()
-    server.reply_json({"sample": [1, 2]})
+    # A JSON asset that happens to carry a non-zero code is still file content.
+    server.status = 200
+    server.reply_json({"code": -1, "msg": "user data"})
     assert runner.invoke(main, command).exit_code == 0
     assert output.read_bytes() == server.response
 

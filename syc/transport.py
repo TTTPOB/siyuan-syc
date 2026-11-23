@@ -7,6 +7,6 @@ from urllib.request import getproxies, proxy_bypass
 def proxy_for(url: str) -> str | None:
     endpoint = urlsplit(url)
     # Let urllib interpret bypass entries instead of parsing every entry as a URL.
-    if proxy_bypass(endpoint.hostname or ""):
+    if proxy_bypass(endpoint.netloc):
         return None
     return getproxies().get(endpoint.scheme)
