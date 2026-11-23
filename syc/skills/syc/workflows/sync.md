@@ -1,30 +1,29 @@
 # Sync
 
-`syc sync` calls the MCP `sync` tool with `{"action":"perform"}` (full upload
-and download) on the selected instance only.
+Run `syc sync` once after a batch of writes, not after every write. With no
+positional names it syncs the selected instance. Use `syc -i NAME sync` to
+select one explicitly.
 
-- Exit 0 means this instance completed its sync request. It does not show that
-  other replicas have the same data.
-- To carry changes to another replica, sync the instance you wrote to, then
-  sync the other one: `syc -i server sync`, then `syc -i desktop sync`.
-- Sync once after a batch of writes, not after every write.
-- `syc call sync '{"action":"status"}'` reports the instance's sync status.
-- On failure, report the message and stop. Do not loop; repeated attempts can
-  pile up sync conflicts.
-
-Good: write on `server`, then carry the change to `desktop` as the user asked.
+To push changes from a writer and then pull them on a replica that shares the
+same cloud sync target, put the writer first and the replica second:
 
 ```sh
-syc -i server sync
-syc -i desktop sync
+syc sync server desktop
 ```
 
-Bad: claiming more than the result shows.
+`syc sync [INSTANCE ...]` processes positional names in order and stops at the
+first failure. Do not combine positional names with `-i`.
 
-> Synced, so both instances now have identical notes.
+1. Check the exit code. Stdout is one JSON result; `structuredContent.instances`
+   lists attempted instances in order with `instance`, `ok`, and `message`.
+2. Exit 0 means each attempted instance advanced its sync timestamp and
+   reported successful sync statistics. It does not prove that replicas have
+   identical data. Read back a specific note on the replica if you need to
+   verify it arrived.
+3. On exit 1, report the failed instance and its message to the user and stop.
+   Do not loop or retry automatically. If sync did not appear to run, check
+   that sync is enabled, the instance is logged in to a SiYuan account, and a
+   sync provider is configured.
 
-Bad: retrying until it passes.
-
-```sh
-until syc sync; do sleep 5; done
-```
+For a status-only check, use `syc call sync '{"action":"status"}'` on the
+selected instance.

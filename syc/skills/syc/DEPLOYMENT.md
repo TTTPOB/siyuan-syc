@@ -7,7 +7,7 @@ fail with HTTP or connection errors, or the user asks for setup.
 
 ```sh
 command -v syc >/dev/null && syc --version || echo "not installed"
-uv tool install https://github.com/TTTPOB/siyuan-syc/releases/download/v0.1.0/siyuan_syc-0.1.0-py3-none-any.whl
+uv tool install https://github.com/TTTPOB/siyuan-syc/releases/download/v0.1.1/siyuan_syc-0.1.1-py3-none-any.whl
 ```
 
 Install the skill for the host the user is working in, only when asked:

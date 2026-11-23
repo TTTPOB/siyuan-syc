@@ -50,18 +50,9 @@ def test_call_reads_stdin_and_writes_binary_blocks_to_temp(
     assert Path(image["path"]).read_bytes() == sample
 
 
-@pytest.mark.parametrize(
-    "args,expected",
-    [
-        (["call", "example", "{}"], ("example", {})),
-        (["sync"], ("sync", {"action": "perform"})),
-    ],
-)
 def test_mcp_error_result_stays_on_stdout(
     config_root: Path,
     monkeypatch: pytest.MonkeyPatch,
-    args: list[str],
-    expected: tuple[str, dict[str, str]],
 ) -> None:
     calls: list[tuple[str, dict[str, str]]] = []
 
@@ -74,8 +65,8 @@ def test_mcp_error_result_stays_on_stdout(
         )
 
     monkeypatch.setattr(mcp_client, "call_tool", stub)
-    result = CliRunner().invoke(main, args)
-    assert calls == [expected]
+    result = CliRunner().invoke(main, ["call", "example", "{}"])
+    assert calls == [("example", {})]
     assert result.exit_code == 1
     assert result.stderr.strip() == "syc: instance=server (only)"
     payload = json.loads(result.stdout)

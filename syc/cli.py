@@ -138,16 +138,6 @@ def describe(ctx: Context, tool: str, schema: bool) -> None:
     )
 
 
-def _call(ctx: Context, tool: str, args: dict[str, Any]) -> None:
-    from .mcp_client import call_tool, result_json
-
-    _, _, instance = ctx.resolve(report=True)
-    result = call_tool(instance, tool, args)
-    _json(result_json(result))
-    if result.is_error:
-        raise click.exceptions.Exit(1)
-
-
 @main.command()
 @click.argument("tool")
 @click.argument("args")
@@ -163,14 +153,57 @@ def call(ctx: Context, tool: str, args: str) -> None:
         ) from None
     if not isinstance(arguments, dict):
         raise click.BadParameter("expected a JSON object", param_hint="ARGS")
-    _call(ctx, tool, arguments)
+    from .mcp_client import call_tool, result_json
+
+    _, _, instance = ctx.resolve(report=True)
+    result = call_tool(instance, tool, arguments)
+    _json(result_json(result))
+    if result.is_error:
+        raise click.exceptions.Exit(1)
 
 
 @main.command()
+@click.argument("names", nargs=-1, metavar="[INSTANCE ...]")
 @pass_context
-def sync(ctx: Context) -> None:
-    """Request bidirectional sync on one instance; does not verify convergence."""
-    _call(ctx, "sync", {"action": "perform"})
+def sync(ctx: Context, names: tuple[str, ...]) -> None:
+    """Sync the selected instance or the given instances in order; stop on failure."""
+    from .sync import sync_instance
+
+    if names:
+        if ctx.flag is not None:
+            raise click.UsageError(
+                "Use either -i NAME or positional instance names, not both."
+            )
+        entries = load_instances(config_dir())
+        targets = [
+            (name, "argument", require_instance(entries, name)) for name in names
+        ]
+    else:
+        targets = [ctx.resolve()]
+
+    attempts: list[dict[str, str | bool]] = []
+    content: list[dict[str, str]] = []
+    for name, source, instance in targets:
+        click.echo(f"syc: instance={name} ({source})", err=True)
+        try:
+            ok, message = sync_instance(instance)
+        except click.ClickException as exc:
+            ok, message = False, exc.format_message()
+        attempts.append({"instance": name, "ok": ok, "message": message})
+        content.append({"type": "text", "text": f"{name}: {message}"})
+        if not ok:
+            break
+
+    is_error = not attempts[-1]["ok"]
+    _json(
+        {
+            "content": content,
+            "isError": is_error,
+            "structuredContent": {"instances": attempts},
+        }
+    )
+    if is_error:
+        raise click.exceptions.Exit(1)
 
 
 @main.group()

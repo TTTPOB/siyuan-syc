@@ -68,6 +68,9 @@ other binary content blocks carry a local `path` in place of base64 data.
 - Use `search` for keywords and the read-only `sql` tool for structure. Run
   `syc call sql '{"action":"schema"}'` once before writing queries.
 - Identify documents and blocks by ID. Display paths are not unique.
+- `sql` returns a Markdown table whose columns are sorted alphabetically, not
+  in `SELECT` order. Read values by header name. A list of block links follows
+  the table, so select only the columns you need and set `LIMIT`.
 
 Good: locate by query, then act on the returned ID.
 

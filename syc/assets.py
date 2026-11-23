@@ -7,41 +7,12 @@ from pathlib import Path
 from typing import Any
 
 import click
-import httpx2
 
 from .config import Instance
-from .transport import proxy_for
+from .transport import api_error, request
 
 UPLOAD = "/api/asset/upload"
 GET_FILE = "/api/file/getFile"
-
-
-def _post(instance: Instance, endpoint: str, **kwargs: Any) -> httpx2.Response:
-    # Let HTTPX2 set the JSON or multipart Content-Type for this particular request.
-    headers = {
-        k: v for k, v in instance.headers().items() if k.lower() != "content-type"
-    }
-    try:
-        with httpx2.Client(
-            headers=headers, timeout=60, trust_env=False, proxy=proxy_for(instance.url)
-        ) as client:
-            response = client.post(instance.url + endpoint, **kwargs)
-        response.raise_for_status()
-    except httpx2.HTTPStatusError as exc:
-        raise click.ClickException(
-            f"SiYuan {endpoint}: HTTP {exc.response.status_code}"
-        ) from None
-    except (httpx2.RequestError, httpx2.InvalidURL, UnicodeError) as exc:
-        raise click.ClickException(f"SiYuan {endpoint}: {type(exc).__name__}") from None
-    return response
-
-
-def _api_error(endpoint: str, result: dict[str, Any]) -> click.ClickException:
-    msg = result.get("msg")
-    detail = f" ({msg})" if isinstance(msg, str) and msg else ""
-    return click.ClickException(
-        f"SiYuan {endpoint}: API code {result.get('code', 'missing')}{detail}"
-    )
 
 
 def upload_assets(instance: Instance, files: tuple[Path, ...]) -> list[dict[str, str]]:
@@ -53,8 +24,8 @@ def upload_assets(instance: Instance, files: tuple[Path, ...]) -> list[dict[str,
             ("file[]", (path.name, stack.enter_context(path.open("rb"))))
             for path in files
         ]
-        response = _post(
-            instance, UPLOAD, data={"assetsDirPath": "/assets/"}, files=parts
+        response = request(
+            instance, "POST", UPLOAD, data={"assetsDirPath": "/assets/"}, files=parts
         )
     try:
         result = response.json()
@@ -67,7 +38,7 @@ def upload_assets(instance: Instance, files: tuple[Path, ...]) -> list[dict[str,
         or type(result.get("code")) not in (int, float)
         or result["code"] != 0
     ):
-        raise _api_error(UPLOAD, result if isinstance(result, dict) else {})
+        raise api_error(UPLOAD, result if isinstance(result, dict) else {})
     data = result.get("data")
     if isinstance(data, dict) and data.get("errFiles"):
         raise click.ClickException(
@@ -93,14 +64,14 @@ def get_asset(instance: Instance, asset: str, output: Path | None) -> dict[str, 
         raise click.ClickException(
             "Use a relative SiYuan asset path such as assets/example.png"
         )
-    response = _post(instance, GET_FILE, json={"path": "/data/" + asset})
+    response = request(instance, "POST", GET_FILE, json={"path": "/data/" + asset})
     # getFile answers 200 with the raw file and 202 with a JSON error envelope.
     if response.status_code == 202:
         try:
             result = response.json()
         except (json.JSONDecodeError, UnicodeError):
             result = {}
-        raise _api_error(GET_FILE, result if isinstance(result, dict) else {})
+        raise api_error(GET_FILE, result if isinstance(result, dict) else {})
     media_type = response.headers.get("Content-Type", "application/octet-stream")
 
     if output is None:
