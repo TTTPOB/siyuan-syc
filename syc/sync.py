@@ -16,9 +16,13 @@ LAN_TRAFFIC = '<br data-type="lanSyncTraffic">'
 
 
 def _json_request(
-    instance: Instance, method: str, endpoint: str, body: dict[str, str] | None = None
+    instance: Instance,
+    method: str,
+    endpoint: str,
+    body: dict[str, str] | None = None,
+    timeout: float = 60,
 ) -> object:
-    response = request(instance, method, endpoint, json=body)
+    response = request(instance, method, endpoint, json=body, timeout=timeout)
     try:
         return response.json()
     except (json.JSONDecodeError, UnicodeError):
@@ -27,8 +31,10 @@ def _json_request(
         ) from None
 
 
-def _api_post(instance: Instance, endpoint: str, body: dict[str, str]) -> object:
-    result = _json_request(instance, "POST", endpoint, body)
+def _api_post(
+    instance: Instance, endpoint: str, body: dict[str, str], timeout: float = 60
+) -> object:
+    result = _json_request(instance, "POST", endpoint, body, timeout)
     if (
         not isinstance(result, dict)
         or type(result.get("code")) is not int
@@ -73,7 +79,8 @@ def _success_pattern(instance: Instance) -> re.Pattern[str]:
 def sync_instance(instance: Instance) -> tuple[bool, str]:
     pattern = _success_pattern(instance)
     before = _state(instance)
-    _api_post(instance, PERFORM, {})
+    # performSync blocks until the sync finishes; a first sync can take minutes.
+    _api_post(instance, PERFORM, {}, timeout=600)
     after = _state(instance)
     synced, stat = after
     if synced != before[0] and pattern.fullmatch(stat.partition(LAN_TRAFFIC)[0]):
