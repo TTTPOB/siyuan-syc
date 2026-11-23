@@ -7,7 +7,7 @@ from pathlib import Path
 from typing import Any
 
 import click
-import httpx
+import httpx2
 
 from .config import Instance
 from .transport import proxy_for
@@ -16,22 +16,22 @@ UPLOAD = "/api/asset/upload"
 GET_FILE = "/api/file/getFile"
 
 
-def _post(instance: Instance, endpoint: str, **kwargs: Any) -> httpx.Response:
-    # Let HTTPX set the JSON or multipart Content-Type for this particular request.
+def _post(instance: Instance, endpoint: str, **kwargs: Any) -> httpx2.Response:
+    # Let HTTPX2 set the JSON or multipart Content-Type for this particular request.
     headers = {
         k: v for k, v in instance.headers().items() if k.lower() != "content-type"
     }
     try:
-        with httpx.Client(
+        with httpx2.Client(
             headers=headers, timeout=60, trust_env=False, proxy=proxy_for(instance.url)
         ) as client:
             response = client.post(instance.url + endpoint, **kwargs)
         response.raise_for_status()
-    except httpx.HTTPStatusError as exc:
+    except httpx2.HTTPStatusError as exc:
         raise click.ClickException(
             f"SiYuan {endpoint}: HTTP {exc.response.status_code}"
         ) from None
-    except (httpx.RequestError, httpx.InvalidURL, UnicodeError) as exc:
+    except (httpx2.RequestError, httpx2.InvalidURL, UnicodeError) as exc:
         raise click.ClickException(f"SiYuan {endpoint}: {type(exc).__name__}") from None
     return response
 

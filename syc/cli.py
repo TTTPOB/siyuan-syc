@@ -130,8 +130,8 @@ def describe(ctx: Context, tool: str, schema: bool) -> None:
         if entry.name == tool:
             keys = {"name", "description"}
             if schema:
-                keys.update({"inputSchema", "annotations", "outputSchema"})
-            _json(entry.model_dump(mode="json", include=keys))
+                keys.update({"input_schema", "annotations", "output_schema"})
+            _json(entry.model_dump(mode="json", by_alias=True, include=keys))
             return
     raise click.ClickException(
         f"Unknown MCP tool {tool!r}; run `syc tools` to list tools."
@@ -144,7 +144,7 @@ def _call(ctx: Context, tool: str, args: dict[str, Any]) -> None:
     _, _, instance = ctx.resolve(report=True)
     result = call_tool(instance, tool, args)
     _json(result_json(result))
-    if result.isError:
+    if result.is_error:
         raise click.exceptions.Exit(1)
 
 
